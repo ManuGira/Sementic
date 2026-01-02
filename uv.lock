@@ -1,11 +1,6 @@
 version = 1
 revision = 3
 requires-python = ">=3.12"
-resolution-markers = [
-    "sys_platform == 'darwin'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')",
-]
 
 [[package]]
 name = "colorama"
@@ -84,14 +79,10 @@ wheels = [
 
 [[package]]
 name = "coordinatus"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.3.0.dev1"
+source = { git = "https://github.com/ManuGira/Coordinatus.git?rev=develop#cdc676564973e478b2df1de70b568e2183a03466" }
 dependencies = [
     { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/84/e7/e7f6f6d24eea2e78873c0e3cb3574e6dec6b0db651a9e48133f70f1ac822/coordinatus-0.2.0.tar.gz", hash = "sha256:51cc993b5e1ea7148728f1e708e0577253a626788c57f920194f9b4ea63ec0eb", size = 7881, upload-time = "2025-12-31T15:28:38.78Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9d/3a/c0756852a372aa1312242fdfe3e63f8ff16db2802600ee17ae47dc6b2157/coordinatus-0.2.0-py3-none-any.whl", hash = "sha256:d7bdd10fee47b73bdb603a35c8ca2ab10c01d54f5c8ed334c084ced0d90fd89f", size = 10318, upload-time = "2025-12-31T15:28:37.661Z" },
 ]
 
 [[package]]
@@ -700,7 +691,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coordinatus", specifier = ">=0.2.0" },
+    { name = "coordinatus", git = "https://github.com/ManuGira/Coordinatus.git?rev=develop" },
     { name = "gensim", specifier = ">=4.4.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "numpy", specifier = ">=2.4.0" },

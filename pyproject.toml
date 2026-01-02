@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "coordinatus>=0.2.0",
+    "coordinatus",
     "gensim>=4.4.0",
     "matplotlib>=3.10.8",
     "numpy>=2.4.0",
@@ -17,3 +17,6 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
 ]
+
+[tool.uv.sources]
+coordinatus = { git = "https://github.com/ManuGira/Coordinatus.git", rev = "develop" }

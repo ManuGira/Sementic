@@ -17,41 +17,41 @@ class CellState(enum.Enum):
 
 @dataclasses.dataclass
 class Letter:
-    pos_xy: tuple[int, int]
+    pos_xy: co.Point
     orientation: Orientation
     char: str = ""
 
 
 class CrossWord:
-    word: str
-    pos_xy: tuple[int, int]
-    orientation: Orientation
-
-    def __init__(self, word: str, pos_xy: tuple[int, int], orientation: Orientation):
+    def __init__(self, word: str, pos_xy: co.Point, orientation: Orientation):
         self.word = word
-        self.pos_xy = pos_xy
         self.orientation = orientation
+        assert isinstance(pos_xy, co.Point), f"pos_xy must be a coordinatus Point, got {type(pos_xy)}"
+        self.pos_xy = pos_xy
 
+        # Set up local coordinate system for the word
+        tx, ty = pos_xy.coords.round().astype(int)
         sy = 1
         angle_rad = 0.0
         if self.orientation == Orientation.VERTICAL:
             sy=-1
             angle_rad=np.pi/2
-        self.coordinate_system = co.create_frame(None, tx=self.pos_xy[0], ty=self.pos_xy[1], angle_rad=angle_rad, sy=sy)
-        self.coordinate = co.Point(np.array((0, 0)), frame=self.coordinate_system)
+
+        self.local_frame = co.create_frame(None, tx=tx, ty=ty, angle_rad=angle_rad, sy=sy)
+
 
     def board_to_local_coordinates(self, board_pos_xy: tuple[int, int]) -> tuple[int, int]:
         """Convert global grid coordinates to local word coordinates."""
-        board_pos = co.Point(np.array(board_pos_xy))
-        local_pos = board_pos.relative_to(self.coordinate_system)
-        local_pos_xy = np.round(local_pos.local_coords).astype(int)
+        pos = co.Point(board_pos_xy)
+        pos = pos.relative_to(self.local_frame)
+        local_pos_xy = pos.coords.round().astype(int).tolist()
         return local_pos_xy.tolist()
 
     def local_to_board_coordinates(self, local_pos_xy: tuple[int, int]) -> tuple[int, int]:
         """Convert local word coordinates to global grid coordinates."""
-        pos = co.Point(np.array(local_pos_xy), frame=self.coordinate_system)
+        pos = co.Point(local_pos_xy, frame=self.local_frame)
         pos = pos.to_absolute()
-        board_pos_xy = np.round(pos.local_coords).astype(int).tolist()
+        board_pos_xy = pos.coords.round().astype(int).tolist()
         return board_pos_xy
 
     def __eq__(self, other: 'CrossWord'):
@@ -61,9 +61,9 @@ class CrossWord:
                 self.pos_xy == other.pos_xy and
                 self.orientation == other.orientation)
 
-    def char_at_grid_pos(self, pos_xy: tuple[int, int]) -> tuple[CellState, str]:
+    def char_at_grid_pos(self, pos_xy: co.Point) -> tuple[CellState, str]:
         """Get character at given position if it exists in the word placement."""
-        x, y = self.board_to_local_coordinates(pos_xy)
+        x, y = pos_xy.relative_to(self.local_frame).coords.round().astype(int)
 
         y_distance = abs(y)
         if x < 0:
@@ -93,22 +93,22 @@ class CrossWord:
         """Get all letters with their positions and orientations."""
         letters = []
         for idx, char in enumerate(self.word):
-            if self.orientation == Orientation.HORIZONTAL:
-                pos = (self.pos_xy[0] + idx, self.pos_xy[1])
-            else:
-                pos = (self.pos_xy[0], self.pos_xy[1] + idx)
-            letters.append(Letter(pos, self.orientation, char))
+            letters.append(
+                Letter(
+                    co.Point([idx, 0], self.local_frame).to_absolute(),
+                    self.orientation,
+                    char,
+                ))
+
         return letters
 
     def get_pre_padding(self) -> Letter:
-        local_pos_xy = (-1, 0)
-        board_pos_xy = self.local_to_board_coordinates(local_pos_xy)
-        return Letter(board_pos_xy, self.orientation, "0")
+        board_pos = co.Point((-1, 0), self.local_frame).to_absolute()
+        return Letter(board_pos, self.orientation, "0")
 
     def get_post_padding(self) -> Letter:
-        local_pos_xy = (len(self.word), 0)
-        board_pos_xy = self.local_to_board_coordinates(local_pos_xy)
-        return Letter(board_pos_xy, self.orientation, "0")
+        board_pos = co.Point((len(self.word), 0), self.local_frame).to_absolute()
+        return Letter(board_pos, self.orientation, "0")
 
         
     def find_cross_points(self, other_word: str) -> list['CrossWord']:
@@ -119,9 +119,8 @@ class CrossWord:
         for i, char1 in enumerate(self.word):
             for j, char2 in enumerate(other_word):
                 if char1 == char2:
-                    local_pos_xy = (i, -j)
-                    board_pos_xy = self.local_to_board_coordinates(local_pos_xy)
-                    cross_points.append(CrossWord(other_word, board_pos_xy, other_orientation))
+                    board_pos = co.Point([i, -j], self.local_frame).to_absolute()
+                    cross_points.append(CrossWord(other_word, board_pos, other_orientation))
         return cross_points
     
         
@@ -157,7 +156,7 @@ class CrossWordsBoard:
 
     def compute_new_word_placements(self, word: str):
         if len(self.placements) == 0:
-            return [CrossWord(word, (0, 0), Orientation.HORIZONTAL)]
+            return [CrossWord(word, co.Point([0, 0]), Orientation.HORIZONTAL)]
 
         valid_crossword_positions: list[CrossWord] = []
         for crossword in self.placements:
@@ -168,7 +167,7 @@ class CrossWordsBoard:
         return valid_crossword_positions
 
 
-    def get_char(self, pos_xy: tuple[int, int]) -> str:
+    def get_char(self, pos_xy: co.Point) -> str:
         """Get character at given position from any word placement."""
         for placement in self.placements:
             cellstate, char = placement.char_at_grid_pos(pos_xy)
@@ -185,10 +184,10 @@ class CrossWordsBoard:
 
         letters = [letter for placement in self.placements for letter in placement.letters()]
 
-        min_x = min(letter.pos_xy[0] for letter in letters)
-        max_x = max(letter.pos_xy[0] for letter in letters)
-        min_y = min(letter.pos_xy[1] for letter in letters)
-        max_y = max(letter.pos_xy[1] for letter in letters)
+        min_x = int(round(min(letter.pos_xy[0] for letter in letters)))
+        max_x = int(round(max(letter.pos_xy[0] for letter in letters)))
+        min_y = int(round(min(letter.pos_xy[1] for letter in letters)))
+        max_y = int(round(max(letter.pos_xy[1] for letter in letters)))
 
         board_frame = co.create_frame(None, tx=min_x, ty=min_y)
         width = max_x - min_x + 1
@@ -196,8 +195,8 @@ class CrossWordsBoard:
         board_array = np.full((height, width), ".", dtype=str)
 
         for letter in letters:
-            pos_xy = co.Point(np.array(letter.pos_xy), None).relative_to(board_frame)
-            x, y = int(pos_xy.local_coords[0]), int(pos_xy.local_coords[1])
+            pos_xy = letter.pos_xy.relative_to(board_frame)
+            x, y = pos_xy.coords.round().astype(int)
             board_array[y, x] = letter.char
 
         return board_array.tolist()
@@ -264,10 +263,10 @@ def main():
 
 def main2():
     board = CrossWordsBoard()
-    word1 = CrossWord("chat", (0, 0), Orientation.HORIZONTAL)
+    word1 = CrossWord("chat", co.Point([0, 0]), Orientation.HORIZONTAL)
     board.add_word(word1)
 
-    word2 = CrossWord("table", (-1, -1), Orientation.VERTICAL)
+    word2 = CrossWord("table", co.Point([-1, -1]), Orientation.VERTICAL)
     if board.is_valid_placement(word2):
         board.add_word(word2)
 
